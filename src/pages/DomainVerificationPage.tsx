@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Navigation } from '@/components/Navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -183,6 +184,8 @@ export default function DomainVerificationPage() {
   };
 
   return (
+    <div className="min-h-screen bg-black">
+    <Navigation />
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
@@ -360,6 +363,7 @@ export default function DomainVerificationPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
     </div>
   );
 }
