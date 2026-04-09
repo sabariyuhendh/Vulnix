@@ -114,4 +114,30 @@ export class GitHubAuthService {
       throw new Error('Failed to fetch repositories from GitHub');
     }
   }
+
+  static async getRepositoryBranches(owner: string, repo: string, accessToken: string): Promise<any[]> {
+    try {
+      const response = await axios.get(`${this.GITHUB_API_URL}/repos/${owner}/${repo}/branches`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+        params: {
+          per_page: 100,
+        },
+      });
+
+      return response.data.map((branch: any) => ({
+        name: branch.name,
+        protected: branch.protected,
+        commit: {
+          sha: branch.commit.sha,
+          url: branch.commit.url,
+        },
+      }));
+    } catch (error) {
+      console.error('Error getting repository branches:', error);
+      throw new Error('Failed to fetch branches from GitHub');
+    }
+  }
 }

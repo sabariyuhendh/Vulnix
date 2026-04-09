@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Search, Lock, Unlock, Star, ArrowRight, Globe, GitBranch, AlertCircle } from "lucide-react";
+import { Search, Lock, Unlock, Star, ArrowRight, GitBranch, AlertCircle } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { API_ENDPOINTS } from "@/config/api";
 import { AuthService } from "@/services/auth.service";
 import { ScanService } from "@/services/scan.service";
-
-type ScanMode = "repo" | "website";
 
 interface Repository {
   id: string;
@@ -23,21 +21,25 @@ interface Repository {
   defaultBranch: string;
 }
 
+interface Branch {
+  name: string;
+  protected: boolean;
+}
+
 const RepoSelectPage = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<ScanMode>("repo");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mode === "repo") {
-      fetchRepositories();
-    }
-  }, [mode]);
+    fetchRepositories();
+  }, []);
 
   const fetchRepositories = async () => {
     try {
@@ -75,35 +77,62 @@ const RepoSelectPage = () => {
     }
   };
 
+  const fetchBranches = async (repoFullName: string) => {
+    try {
+      setLoadingBranches(true);
+      const token = AuthService.getToken();
+      if (!token) return;
+
+      const [owner, repo] = repoFullName.split('/');
+      const response = await fetch(API_ENDPOINTS.auth.branches(owner, repo), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch branches");
+      }
+
+      const data = await response.json();
+      setBranches(data.branches || []);
+      
+      // Set default branch as selected
+      const selectedRepo = repositories.find(r => r.fullName === repoFullName);
+      if (selectedRepo) {
+        setSelectedBranch(selectedRepo.defaultBranch);
+      }
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+      setBranches([]);
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
+
   const filtered = repositories.filter((r) =>
     r.fullName.toLowerCase().includes(search.toLowerCase())
   );
 
-  const canScan = mode === "repo" ? !!selected : websiteUrl.trim().length > 0;
-
   const handleScan = async () => {
-    if (mode === "website") {
-      navigate("/scan?mode=website&url=" + encodeURIComponent(websiteUrl.trim()));
-    } else {
-      if (!selected) return;
-      
-      const selectedRepo = repositories.find(r => r.id === selected);
-      if (!selectedRepo) return;
+    if (!selected || !selectedBranch) return;
+    
+    const selectedRepo = repositories.find(r => r.id === selected);
+    if (!selectedRepo) return;
 
-      try {
-        const { scanId } = await ScanService.startScan({
-          repoId: selectedRepo.id,
-          repoName: selectedRepo.name,
-          repoFullName: selectedRepo.fullName,
-          repoUrl: selectedRepo.url,
-          defaultBranch: selectedRepo.defaultBranch,
-        });
+    try {
+      const { scanId } = await ScanService.startScan({
+        repoId: selectedRepo.id,
+        repoName: selectedRepo.name,
+        repoFullName: selectedRepo.fullName,
+        repoUrl: selectedRepo.url,
+        defaultBranch: selectedBranch, // Use selected branch instead of default
+      });
 
-        navigate(`/scan?scanId=${scanId}`);
-      } catch (error: any) {
-        console.error("Error starting scan:", error);
-        setError(error.message || "Failed to start scan");
-      }
+      navigate(`/scan?scanId=${scanId}`);
+    } catch (error: any) {
+      console.error("Error starting scan:", error);
+      setError(error.message || "Failed to start scan");
     }
   };
 
@@ -111,47 +140,21 @@ const RepoSelectPage = () => {
     <div className="min-h-screen bg-black">
       <Navigation />
 
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      <div className="w-full px-6 py-12">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-medium text-foreground mb-2">Security Scan</h1>
-          <p className="text-muted-foreground mb-8 font-light">Scan a repository or website for vulnerabilities</p>
+          <p className="text-muted-foreground mb-8 font-light">Scan a repository for vulnerabilities</p>
 
-          {/* Mode Tabs */}
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => setMode("repo")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-all ${
-                mode === "repo"
-                  ? "bg-primary text-black"
-                  : "bg-card text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <GitBranch className="w-4 h-4" /> Repository
-            </button>
-            <button
-              onClick={() => setMode("website")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-all ${
-                mode === "website"
-                  ? "bg-primary text-black"
-                  : "bg-card text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Globe className="w-4 h-4" /> Website URL
-            </button>
+          {/* Search */}
+          <div className="relative mb-6">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search repositories..."
+              className="w-full pl-11 pr-4 py-2.5 rounded-md bg-card border-2 border-primary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-[0_0_10px_rgba(34,197,94,0.3)] focus:shadow-[0_0_20px_rgba(34,197,94,0.5)] font-mono text-sm transition-all"
+            />
           </div>
-
-          {mode === "repo" ? (
-            <>
-              {/* Search */}
-              <div className="relative mb-6">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search repositories..."
-                  className="w-full pl-11 pr-4 py-2.5 rounded-md bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
-                />
-              </div>
 
               {/* Loading State */}
               {loading && (
@@ -188,69 +191,109 @@ const RepoSelectPage = () => {
                 </div>
               )}
 
-              {/* Repo List */}
+              {/* Repo Cards Grid */}
               {!loading && !error && filtered.length > 0 && (
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                   {filtered.map((repo, i) => (
                     <motion.div
                       key={repo.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                      className={`rounded-md border transition-all ${
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className={`rounded-lg border transition-all cursor-pointer ${
                         selected === repo.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card"
+                          ? "border-primary bg-primary/5 shadow-lg shadow-primary/20"
+                          : "border-border bg-card hover:border-primary/50"
                       }`}
+                      onClick={() => {
+                        setSelected(repo.id);
+                        fetchBranches(repo.fullName);
+                      }}
                     >
-                      <button
-                        onClick={() => setSelected(repo.id)}
-                        className="w-full text-left px-4 py-3.5 flex items-center justify-between hover:opacity-80 transition-opacity"
-                      >
-                        <div className="flex items-center gap-3">
-                          {repo.isPrivate ? (
-                            <Lock className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <Unlock className="w-4 h-4 text-muted-foreground" />
-                          )}
-                          <div>
-                            <div className="font-medium text-foreground text-sm">{repo.fullName}</div>
-                            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3 font-light">
-                              <span className="flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
-                                {repo.language}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Star className="w-3 h-3" /> {repo.stars}
-                              </span>
-                              <span>Updated {repo.updatedAt}</span>
+                      <div className="p-4 space-y-3">
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {repo.isPrivate ? (
+                              <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            ) : (
+                              <Unlock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            )}
+                            <h3 className="font-medium text-foreground text-sm line-clamp-1">
+                              {repo.name}
+                            </h3>
+                          </div>
+                          {selected === repo.id && (
+                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                              <div className="w-2 h-2 rounded-full bg-black" />
                             </div>
-                          </div>
+                          )}
                         </div>
+
+                        {/* Full Name */}
+                        <p className="text-xs text-muted-foreground font-mono line-clamp-1">
+                          {repo.fullName}
+                        </p>
+
+                        {/* Stats */}
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground font-light pt-2 border-t border-border">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                            <span className="truncate">{repo.language}</span>
+                          </span>
+                          <span className="flex items-center gap-1 flex-shrink-0">
+                            <Star className="w-3 h-3" /> {repo.stars}
+                          </span>
+                        </div>
+
+                        {/* Branch Selection */}
                         {selected === repo.id && (
-                          <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-black" />
-                          </div>
-                        )}
-                      </button>
-                      
-                      {/* Inline Scan Button */}
-                      {selected === repo.id && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="px-4 pb-3"
-                        >
-                          <button
-                            onClick={handleScan}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-primary text-black text-sm hover:opacity-90 transition-opacity"
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            className="space-y-2"
                           >
-                            Start Security Scan
+                            <label className="text-xs text-muted-foreground">Select Branch:</label>
+                            {loadingBranches ? (
+                              <div className="flex items-center justify-center py-2">
+                                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            ) : (
+                              <select
+                                value={selectedBranch}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBranch(e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full px-3 py-2 rounded-md bg-card border border-border text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                              >
+                                {branches.map((branch) => (
+                                  <option key={branch.name} value={branch.name}>
+                                    {branch.name} {branch.protected ? '🔒' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </motion.div>
+                        )}
+
+                        {/* Scan Button */}
+                        {selected === repo.id && selectedBranch && (
+                          <motion.button
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleScan();
+                            }}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-primary text-black text-sm hover:opacity-90 transition-opacity"
+                          >
+                            Start Scan
                             <ArrowRight className="w-4 h-4" />
-                          </button>
-                        </motion.div>
-                      )}
+                          </motion.button>
+                        )}
+                      </div>
                     </motion.div>
                   ))}
                 </div>
@@ -263,55 +306,6 @@ const RepoSelectPage = () => {
                   <p className="text-muted-foreground text-sm">No repositories match your search</p>
                 </div>
               )}
-            </>
-          ) : (
-            <>
-              {/* Website URL Input */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
-              >
-                <div className="relative">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    placeholder="https://example.com"
-                    type="url"
-                    className="w-full pl-11 pr-4 py-2.5 rounded-md bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
-                  />
-                </div>
-                <div className="bg-card border border-border rounded-md p-4 space-y-2">
-                  <h3 className="text-sm font-medium text-foreground">Website scan includes:</h3>
-                  <ul className="text-xs text-muted-foreground space-y-1.5 font-light">
-                    <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-primary" /> TLS/SSL configuration analysis</li>
-                    <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-primary" /> HTTP security headers check</li>
-                    <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-primary" /> Exposed sensitive files detection</li>
-                    <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-primary" /> Open redirect & injection scanning</li>
-                    <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-primary" /> Cookie security flag analysis</li>
-                    <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-primary" /> AI-powered remediation suggestions</li>
-                  </ul>
-                </div>
-              </motion.div>
-
-              {/* Scan Button for Website Mode */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: canScan ? 1 : 0.4 }}
-                className="mt-8"
-              >
-                <button
-                  disabled={!canScan}
-                  onClick={handleScan}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-primary text-black text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-                >
-                  Scan Website
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </motion.div>
-            </>
-          )}
         </motion.div>
       </div>
     </div>

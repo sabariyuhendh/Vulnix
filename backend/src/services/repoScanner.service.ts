@@ -36,11 +36,36 @@ export class RepoScannerService {
       await this.addLog(scanId, 'info', `Repository: ${repoFullName}`);
       await this.addLog(scanId, 'info', `Branch: ${defaultBranch}`);
 
+      // First, verify repository exists and get actual default branch
+      await this.addLog(scanId, 'info', 'Verifying repository access...');
+      let actualBranch = defaultBranch;
+      try {
+        const repoResponse = await axios.get(
+          `${this.GITHUB_API_URL}/repos/${repoFullName}`,
+          {
+            headers: {
+              Authorization: `Bearer ${githubAccessToken}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        );
+        actualBranch = repoResponse.data.default_branch;
+        await this.addLog(scanId, 'success', `Repository verified. Default branch: ${actualBranch}`);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          throw new Error(`Repository '${repoFullName}' not found. Please verify the repository name.`);
+        } else if (error.response?.status === 401 || error.response?.status === 403) {
+          throw new Error('Access denied. Please verify your GitHub token has access to this repository.');
+        } else {
+          throw new Error(`Failed to verify repository: ${error.message}`);
+        }
+      }
+
       // Fetch repository tree
       await this.addLog(scanId, 'info', 'Fetching complete repository structure...');
       const allFiles = await this.fetchAllRepositoryFiles(
         repoFullName,
-        defaultBranch,
+        actualBranch,
         githubAccessToken
       );
 
@@ -165,7 +190,15 @@ export class RepoScannerService {
       return allFiles;
     } catch (error: any) {
       console.error('Error fetching repository content:', error);
-      throw new Error('Failed to fetch repository content from GitHub');
+      
+      // Provide more specific error messages
+      if (error.response?.status === 404) {
+        throw new Error(`Branch '${branch}' not found in repository. Please verify the branch name.`);
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error('GitHub authentication failed. Please check your access token permissions.');
+      } else {
+        throw new Error(`Failed to fetch repository content: ${error.message}`);
+      }
     }
   }
 

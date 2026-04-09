@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
     verify: `${API_URL}/api/auth/verify`,
     logout: `${API_URL}/api/auth/logout`,
     repositories: `${API_URL}/api/auth/repositories`,
+    branches: (owner: string, repo: string) => `${API_URL}/api/auth/repositories/${owner}/${repo}/branches`,
   },
   scan: {
     start: `${API_URL}/api/scan/start`,

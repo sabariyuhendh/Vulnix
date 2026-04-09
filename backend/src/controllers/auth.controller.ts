@@ -143,4 +143,32 @@ export class AuthController {
       res.status(500).json({ error: 'Failed to fetch repositories' });
     }
   }
+
+  static async getRepositoryBranches(req: Request, res: Response) {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+
+      if (!token) {
+        return res.status(401).json({ error: 'No token provided' });
+      }
+
+      const payload = JWTService.verifyToken(token);
+      const { owner, repo } = req.params;
+      
+      // Get user's GitHub access token
+      const githubAccessToken = await UserService.getGithubAccessToken(payload.userId);
+      
+      if (!githubAccessToken) {
+        return res.status(401).json({ error: 'GitHub access token not found. Please re-authenticate.' });
+      }
+
+      // Fetch branches from GitHub
+      const branches = await GitHubAuthService.getRepositoryBranches(owner, repo, githubAccessToken);
+      
+      res.json({ branches });
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+      res.status(500).json({ error: 'Failed to fetch branches' });
+    }
+  }
 }

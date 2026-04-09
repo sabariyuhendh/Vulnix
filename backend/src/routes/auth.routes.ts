@@ -18,4 +18,7 @@ router.post('/logout', AuthController.logout);
 // Get user repositories
 router.get('/repositories', AuthController.getUserRepositories);
 
+// Get repository branches
+router.get('/repositories/:owner/:repo/branches', AuthController.getRepositoryBranches);
+
 export default router;
