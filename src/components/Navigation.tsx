@@ -19,7 +19,16 @@ export const Navigation = () => {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <img src={logo} alt="VulnixAI logo" className="h-8 w-auto" />
-            <span className="font-medium text-base text-foreground">VulnixAI</span>
+            <span
+                className="font-medium text-sm"
+                style={{
+                  fontFamily: "'Press Start 2P', monospace",
+                  color: '#00ff41',
+                  textShadow: '0 0 8px #00ff41, 1px 1px 0px #003300',
+                }}
+              >
+                VulnixAI
+              </span>
           </button>
           {isAuthenticated && (
             <div className="flex items-center gap-6">

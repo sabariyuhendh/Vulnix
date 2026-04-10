@@ -56,9 +56,16 @@ const LandingPage = () => {
       ) : (
         <nav className="border-b border-border/50 px-6 py-4 backdrop-blur-sm bg-black/50 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <span className="font-medium text-base text-foreground">
-              VulnixAI
-            </span>
+            <span
+                className="font-medium text-sm"
+                style={{
+                  fontFamily: "'Press Start 2P', monospace",
+                  color: '#00ff41',
+                  textShadow: '0 0 8px #00ff41, 1px 1px 0px #003300',
+                }}
+              >
+                VulnixAI
+              </span>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate("/login")}
@@ -82,14 +89,61 @@ const LandingPage = () => {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
         <div className="max-w-4xl mx-auto px-6 py-32 text-center relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <h1 className="text-5xl md:text-6xl font-medium text-foreground leading-tight mb-6 tracking-tight">
-              Find & Fix Vulnerabilities
-              <br />
-              <span className="text-primary">Before Hackers Do</span>
+            <h1
+              className="text-4xl md:text-5xl text-foreground leading-tight mb-6"
+              style={{ fontFamily: "'Press Start 2P', monospace" }}
+            >
+              {/* "Find & Fix" — Spider-Verse glitch on mount */}
+              <span
+                className="spiderverse-glitch block mb-4"
+                data-text="Find & Fix"
+                style={{
+                  color: '#00ff41',
+                  textShadow: '0 0 10px #00ff41, 0 0 20px #00ff41, 2px 2px 0px #003300',
+                  position: 'relative',
+                }}
+              >
+                Find & Fix
+                {/* Yellow ink layer */}
+                <span className="sv-yellow" aria-hidden="true">Find & Fix</span>
+                {/* Halftone dot overlay */}
+                <span className="sv-halftone" aria-hidden="true" />
+                {/* Dimensional tear */}
+                <span className="sv-tear" aria-hidden="true" />
+              </span>
+
+              {/* "Vulnerabilities" — slightly delayed */}
+              <span
+                className="spiderverse-glitch block mb-4"
+                data-text="Vulnerabilities"
+                style={{
+                  color: '#00ff41',
+                  textShadow: '0 0 10px #00ff41, 0 0 20px #00ff41, 2px 2px 0px #003300',
+                  position: 'relative',
+                  animationDelay: '0.15s',
+                }}
+              >
+                Vulnerabilities
+                <span className="sv-yellow" aria-hidden="true" style={{ animationDelay: '0.15s' }}>Vulnerabilities</span>
+                <span className="sv-halftone" aria-hidden="true" style={{ animationDelay: '0.15s' }} />
+                <span className="sv-tear" aria-hidden="true" style={{ animationDelay: '0.15s' }} />
+              </span>
+
+              <span
+                className="block text-2xl md:text-3xl"
+                style={{
+                  color: '#ffffff',
+                  textShadow: '0 0 8px rgba(0,255,65,0.4), 2px 2px 0px #003300',
+                }}
+              >
+                Before Hackers Do
+              </span>
             </h1>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card text-muted-foreground text-xs mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              AI-Powered Security Scanner
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#00ff41]/40 bg-[#00ff41]/5 text-[#00ff41] text-xs mb-8"
+              style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '9px' }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00ff41] animate-pulse" />
+              Security Scan
             </div>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 font-light">
               VulnixAI scans your GitHub repositories and websites, detects security flaws using multiple scanners, 

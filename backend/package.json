@@ -6,7 +6,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test:mongodb": "tsx scripts/test-mongodb.ts"
+    "test:mongodb": "tsx scripts/test-mongodb.ts",
+    "clear:history": "tsx scripts/clear-old-scan-history.ts"
   },
   "dependencies": {
     "archiver": "^7.0.1",

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Search, Lock, Unlock, Star, ArrowRight, GitBranch, AlertCircle } from "lucide-react";
+import { Search, Lock, Unlock, Star, ArrowRight, GitBranch, AlertCircle, Key } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { API_ENDPOINTS } from "@/config/api";
 import { AuthService } from "@/services/auth.service";
@@ -36,6 +36,7 @@ const RepoSelectPage = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aiApiKey, setAiApiKey] = useState<string>("");
 
   useEffect(() => {
     fetchRepositories();
@@ -59,12 +60,18 @@ const RepoSelectPage = () => {
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         if (response.status === 401) {
-          setError("Session expired. Please log in again.");
-          setTimeout(() => navigate("/login"), 2000);
+          const msg = errorData.error || "";
+          if (msg.includes("GitHub access token")) {
+            setError("GitHub access token missing. Please log out and log in again to re-authorize.");
+          } else {
+            setError("Session expired. Please log in again.");
+            setTimeout(() => navigate("/login"), 2000);
+          }
           return;
         }
-        throw new Error("Failed to fetch repositories");
+        throw new Error(errorData.error || "Failed to fetch repositories");
       }
 
       const data = await response.json();
@@ -121,6 +128,7 @@ const RepoSelectPage = () => {
     if (!selectedRepo) return;
 
     try {
+      // Note: aiApiKey is collected but not sent to backend - backend uses .env key
       const { scanId } = await ScanService.startScan({
         repoId: selectedRepo.id,
         repoName: selectedRepo.name,
@@ -171,12 +179,22 @@ const RepoSelectPage = () => {
                     <AlertCircle className="w-4 h-4" />
                     <p className="text-sm">{error}</p>
                   </div>
-                  <button
-                    onClick={fetchRepositories}
-                    className="mt-3 text-sm text-primary hover:underline"
-                  >
-                    Try again
-                  </button>
+                  <div className="flex items-center gap-4 mt-3">
+                    <button
+                      onClick={fetchRepositories}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Try again
+                    </button>
+                    {error.includes("log out") || error.includes("re-authorize") ? (
+                      <button
+                        onClick={async () => { await AuthService.logout(); navigate("/login"); }}
+                        className="text-sm text-muted-foreground hover:underline"
+                      >
+                        Log out &amp; re-authenticate
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               )}
 
@@ -275,6 +293,34 @@ const RepoSelectPage = () => {
                                 ))}
                               </select>
                             )}
+                          </motion.div>
+                        )}
+
+                        {/* AI API Key Input */}
+                        {selected === repo.id && selectedBranch && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            className="space-y-2"
+                          >
+                            <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <Key className="w-3 h-3" />
+                              AI API Key (Optional):
+                            </label>
+                            <input
+                              type="password"
+                              value={aiApiKey}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setAiApiKey(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              placeholder="Leave empty to use default"
+                              className="w-full px-3 py-2 rounded-md bg-card border border-border text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/50"
+                            />
+                            <p className="text-[10px] text-muted-foreground/70">
+                              If not provided, the default API key will be used
+                            </p>
                           </motion.div>
                         )}
 

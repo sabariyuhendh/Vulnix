@@ -138,9 +138,13 @@ export class AuthController {
       const repositories = await GitHubAuthService.getUserRepositories(githubAccessToken);
       
       res.json({ repositories });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching repositories:', error);
-      res.status(500).json({ error: 'Failed to fetch repositories' });
+      const msg = error?.message || 'Failed to fetch repositories';
+      if (msg.includes('re-authenticate') || msg.includes('invalid or expired')) {
+        return res.status(401).json({ error: msg });
+      }
+      res.status(500).json({ error: msg });
     }
   }
 

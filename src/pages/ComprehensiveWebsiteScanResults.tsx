@@ -305,7 +305,7 @@ export default function ComprehensiveWebsiteScanResults() {
 
         {/* Detailed Results Tabs */}
         <Tabs defaultValue="security" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="pentest">Penetration</TabsTrigger>
             <TabsTrigger value="load">Load Test</TabsTrigger>
