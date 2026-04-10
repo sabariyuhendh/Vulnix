@@ -71,6 +71,14 @@ export class SandboxScanController {
         url: sandbox.url,
         scanId: sandbox.scanId,
         vulnerabilities: vulnCount,
+        codeScanResults: sandbox.codeScanResults || null,
+        penTestResults: sandbox.penTestResults
+          ? {
+              vulnerabilitiesFound: sandbox.penTestResults.vulnerabilitiesFound,
+              riskScore: sandbox.penTestResults.riskScore,
+              results: sandbox.penTestResults.results,
+            }
+          : null,
         error: sandbox.error,
         logs: sandbox.logs.map(log => ({
           time: log.time.toISOString(),

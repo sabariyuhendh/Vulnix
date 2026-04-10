@@ -28,43 +28,35 @@ export interface WebsiteScanResult {
 }
 
 export class WebsiteScannerService {
-  private static readonly TIMEOUT = 15000;
+  private static readonly TIMEOUT = 8000;
 
   static async scanWebsite(url: string): Promise<WebsiteScanResult> {
-    const vulnerabilities: WebsiteVulnerability[] = [];
     const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
 
     try {
-      // Fetch website
-      const response = await axios.get(normalizedUrl, {
-        timeout: this.TIMEOUT,
-        maxRedirects: 5,
-        validateStatus: () => true,
-        httpsAgent: new https.Agent({
-          rejectUnauthorized: false,
+      // Fetch website HTML and SSL check in parallel — biggest latency win
+      const [response, sslInfo] = await Promise.all([
+        axios.get(normalizedUrl, {
+          timeout: this.TIMEOUT,
+          maxRedirects: 5,
+          validateStatus: () => true,
+          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
         }),
-      });
+        this.checkSSL(normalizedUrl),
+      ]);
 
       const headers = response.headers;
       const html = response.data;
 
-      // Check security headers
-      vulnerabilities.push(...this.checkSecurityHeaders(headers));
+      // All analysis is CPU-bound (no I/O), run together synchronously — no await needed
+      const vulnerabilities: WebsiteVulnerability[] = [
+        ...this.checkSecurityHeaders(headers),
+        ...this.checkSSLVulnerabilities(sslInfo),
+        ...this.analyzeHTML(html, normalizedUrl),
+        ...this.checkCommonVulnerabilities(html, headers),
+      ];
 
-      // Check SSL/TLS
-      const sslInfo = await this.checkSSL(normalizedUrl);
-      vulnerabilities.push(...this.checkSSLVulnerabilities(sslInfo));
-
-      // Analyze HTML content
-      vulnerabilities.push(...this.analyzeHTML(html, normalizedUrl));
-
-      // Check for common vulnerabilities
-      vulnerabilities.push(...this.checkCommonVulnerabilities(html, headers));
-
-      // Detect technologies
       const technologies = this.detectTechnologies(html, headers);
-
-      // Calculate security score
       const securityScore = this.calculateSecurityScore(vulnerabilities);
 
       return {
@@ -163,27 +155,16 @@ export class WebsiteScannerService {
   }
 
   private static async checkSSL(url: string): Promise<any> {
-    try {
-      if (!url.startsWith('https://')) {
-        return {
-          valid: false,
-        };
-      }
+    if (!url.startsWith('https://')) return { valid: false };
 
-      const urlObj = new URL(url);
+    const urlObj = new URL(url);
 
-      return new Promise((resolve) => {
-        const options = {
-          host: urlObj.hostname,
-          port: 443,
-          method: 'GET',
-          rejectUnauthorized: false,
-        };
-
-        const req = https.request(options, (res) => {
+    return new Promise((resolve) => {
+      const req = https.request(
+        { host: urlObj.hostname, port: 443, method: 'HEAD', rejectUnauthorized: false, timeout: 5000 },
+        (res) => {
           const cert = (res.socket as any).getPeerCertificate(true);
-
-          if (cert && cert.valid_to) {
+          if (cert?.valid_to) {
             resolve({
               valid: new Date(cert.valid_to) > new Date(),
               issuer: cert.issuer?.O || 'Unknown',
@@ -194,17 +175,12 @@ export class WebsiteScannerService {
           } else {
             resolve({ valid: false });
           }
-        });
-
-        req.on('error', () => {
-          resolve({ valid: false });
-        });
-
-        req.end();
-      });
-    } catch (error) {
-      return { valid: false };
-    }
+        }
+      );
+      req.on('timeout', () => { req.destroy(); resolve({ valid: false }); });
+      req.on('error', () => resolve({ valid: false }));
+      req.end();
+    });
   }
 
   private static checkSSLVulnerabilities(sslInfo: any): WebsiteVulnerability[] {

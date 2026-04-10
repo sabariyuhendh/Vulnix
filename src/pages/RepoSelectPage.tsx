@@ -59,12 +59,18 @@ const RepoSelectPage = () => {
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         if (response.status === 401) {
-          setError("Session expired. Please log in again.");
-          setTimeout(() => navigate("/login"), 2000);
+          const msg = errorData.error || "";
+          if (msg.includes("GitHub access token")) {
+            setError("GitHub access token missing. Please log out and log in again to re-authorize.");
+          } else {
+            setError("Session expired. Please log in again.");
+            setTimeout(() => navigate("/login"), 2000);
+          }
           return;
         }
-        throw new Error("Failed to fetch repositories");
+        throw new Error(errorData.error || "Failed to fetch repositories");
       }
 
       const data = await response.json();
@@ -171,12 +177,22 @@ const RepoSelectPage = () => {
                     <AlertCircle className="w-4 h-4" />
                     <p className="text-sm">{error}</p>
                   </div>
-                  <button
-                    onClick={fetchRepositories}
-                    className="mt-3 text-sm text-primary hover:underline"
-                  >
-                    Try again
-                  </button>
+                  <div className="flex items-center gap-4 mt-3">
+                    <button
+                      onClick={fetchRepositories}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Try again
+                    </button>
+                    {error.includes("log out") || error.includes("re-authorize") ? (
+                      <button
+                        onClick={async () => { await AuthService.logout(); navigate("/login"); }}
+                        className="text-sm text-muted-foreground hover:underline"
+                      >
+                        Log out &amp; re-authenticate
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               )}
 

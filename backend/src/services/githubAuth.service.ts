@@ -109,9 +109,14 @@ export class GitHubAuthService {
         url: repo.html_url,
         defaultBranch: repo.default_branch,
       }));
-    } catch (error) {
-      console.error('Error getting user repositories:', error);
-      throw new Error('Failed to fetch repositories from GitHub');
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message || error?.message;
+      console.error('Error getting user repositories:', status, msg);
+      if (status === 401) {
+        throw new Error('GitHub token is invalid or expired. Please re-authenticate.');
+      }
+      throw new Error(`Failed to fetch repositories from GitHub: ${msg || 'unknown error'}`);
     }
   }
 

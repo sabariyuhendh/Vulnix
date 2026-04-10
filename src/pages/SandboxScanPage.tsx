@@ -12,6 +12,17 @@ interface SandboxStatus {
   url?: string;
   scanId?: string;
   vulnerabilities?: number;
+  codeScanResults?: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  } | null;
+  penTestResults?: {
+    vulnerabilitiesFound: number;
+    riskScore: number;
+  } | null;
   error?: string;
 }
 
@@ -87,9 +98,9 @@ const SandboxScanPage = () => {
         // Continue polling if not done
         if (!['completed', 'failed'].includes(data.status)) {
           setTimeout(poll, 2000);
-        } else if (data.status === 'completed' && data.scanId) {
-          addLog(`Scan completed! Found ${data.vulnerabilities || 0} vulnerabilities`, 'success');
-          setTimeout(() => navigate(`/website-scan/${data.scanId}`), 2000);
+        } else if (data.status === 'completed') {
+          // Don't auto-navigate — let user see the full summary first
+          addLog(`Scan completed!`, 'success');
         }
       } catch (error) {
         console.error('Polling error:', error);
@@ -224,6 +235,115 @@ const SandboxScanPage = () => {
                   );
                 })}
               </div>
+
+              {/* Results Summary — shown when completed */}
+              {sandboxStatus.status === 'completed' && (
+                <div className="mt-5 space-y-4">
+                  <p className="text-xs font-medium text-foreground uppercase tracking-wider">Scan Report</p>
+
+                  {/* AI Code Analysis */}
+                  {sandboxStatus.codeScanResults ? (
+                    <div className="rounded-md border border-border bg-background p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-foreground">AI Code Analysis</p>
+                        <span className="text-xs text-muted-foreground">{sandboxStatus.codeScanResults.total} total issues</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { label: 'Critical', val: sandboxStatus.codeScanResults.critical, color: 'text-red-500', bg: 'bg-red-500/10' },
+                          { label: 'High', val: sandboxStatus.codeScanResults.high, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+                          { label: 'Medium', val: sandboxStatus.codeScanResults.medium, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+                          { label: 'Low', val: sandboxStatus.codeScanResults.low, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+                        ].map(({ label, val, color, bg }) => (
+                          <div key={label} className={`rounded p-2 text-center ${bg}`}>
+                            <p className={`text-xl font-bold ${color}`}>{val}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {sandboxStatus.codeScanResults.total === 0 && (
+                        <p className="text-xs text-muted-foreground mt-2 text-center">No code vulnerabilities detected</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-border bg-background p-4 text-center">
+                      <p className="text-xs text-muted-foreground">AI code analysis was skipped or failed</p>
+                    </div>
+                  )}
+
+                  {/* Website Scan */}
+                  {sandboxStatus.scanId ? (
+                    <div className="rounded-md border border-border bg-background p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-foreground">Website Scan</p>
+                        <span className="text-xs text-green-500">✓ Complete</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {sandboxStatus.vulnerabilities ?? 0} header/SSL/HTML issues found on the running app
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-border bg-background p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-foreground">Website Scan</p>
+                        <span className="text-xs text-yellow-500">Skipped</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">App could not be booted (unsupported runtime)</p>
+                    </div>
+                  )}
+
+                  {/* Pen Test */}
+                  {sandboxStatus.penTestResults ? (
+                    <div className="rounded-md border border-border bg-background p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-foreground">Penetration Test</p>
+                        <span className="text-xs text-green-500">✓ Complete</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded p-2 text-center bg-red-500/10">
+                          <p className="text-xl font-bold text-red-500">{sandboxStatus.penTestResults.vulnerabilitiesFound}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Vulnerabilities</p>
+                        </div>
+                        <div className={`rounded p-2 text-center ${sandboxStatus.penTestResults.riskScore >= 70 ? 'bg-red-500/10' : sandboxStatus.penTestResults.riskScore >= 40 ? 'bg-yellow-500/10' : 'bg-green-500/10'}`}>
+                          <p className={`text-xl font-bold ${sandboxStatus.penTestResults.riskScore >= 70 ? 'text-red-500' : sandboxStatus.penTestResults.riskScore >= 40 ? 'text-yellow-500' : 'text-green-500'}`}>
+                            {sandboxStatus.penTestResults.riskScore}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Risk Score /100</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-border bg-background p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-foreground">Penetration Test</p>
+                        <span className="text-xs text-yellow-500">Skipped</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">App could not be booted (unsupported runtime)</p>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 pt-1">
+                    {sandboxStatus.scanId && (
+                      <button
+                        onClick={() => navigate(`/website-scan/${sandboxStatus.scanId}`)}
+                        className="flex-1 py-2 rounded-md bg-primary text-black text-sm font-medium hover:opacity-90 transition-opacity"
+                      >
+                        View Website Report
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSandboxStatus({ status: 'idle', message: '' });
+                        setLogs([]);
+                      }}
+                      className="flex-1 py-2 rounded-md border border-border text-foreground text-sm hover:bg-card transition-colors"
+                    >
+                      Scan Another Repo
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -263,11 +383,15 @@ const SandboxScanPage = () => {
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1 h-1 rounded-full bg-primary" />
-                Automatically installs dependencies and runs the application
+                AI scans all code files for vulnerabilities (no GitHub token needed)
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1 h-1 rounded-full bg-primary" />
-                Performs comprehensive vulnerability scanning on the running site
+                Supports Node.js, Python, Go, Ruby, and PHP projects
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-primary" />
+                Boots the app and runs website scan + penetration test in parallel
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1 h-1 rounded-full bg-primary" />
